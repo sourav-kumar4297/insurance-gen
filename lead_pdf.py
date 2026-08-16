@@ -116,19 +116,22 @@ def paginate_rows(rows, first_page_capacity=19, next_page_capacity=24):
 
 
 def register_fonts(page):
-    regular = Path(FONT_REGULAR_PATH)
-    bold = Path(FONT_BOLD_PATH)
-    if regular.exists() and bold.exists():
-        page.insert_font(fontname=FONT_REGULAR, fontfile=FONT_REGULAR_PATH)
-        page.insert_font(fontname=FONT_BOLD, fontfile=FONT_BOLD_PATH)
-        page.insert_font(fontname=FONT_SEMIBOLD, fontfile=FONT_BOLD_PATH)
-        ACTIVE_FONTS["regular"] = FONT_REGULAR
-        ACTIVE_FONTS["bold"] = FONT_BOLD
-        ACTIVE_FONTS["semibold"] = FONT_SEMIBOLD
-        return
     ACTIVE_FONTS["regular"] = "helv"
     ACTIVE_FONTS["bold"] = "hebo"
     ACTIVE_FONTS["semibold"] = "hebo"
+    try:
+        regular = Path(FONT_REGULAR_PATH)
+        bold = Path(FONT_BOLD_PATH)
+        if regular.exists() and bold.exists():
+            page.insert_font(fontname=FONT_REGULAR, fontfile=str(regular))
+            page.insert_font(fontname=FONT_BOLD, fontfile=str(bold))
+            ACTIVE_FONTS["regular"] = FONT_REGULAR
+            ACTIVE_FONTS["bold"] = FONT_BOLD
+            ACTIVE_FONTS["semibold"] = FONT_BOLD
+    except Exception:
+        ACTIVE_FONTS["regular"] = "helv"
+        ACTIVE_FONTS["bold"] = "hebo"
+        ACTIVE_FONTS["semibold"] = "hebo"
 
 
 def draw_header_banner(page, generated_on):
@@ -280,6 +283,6 @@ def build_pdf(rows, output_path, start_date, end_date, generated_on):
             draw_footer(page, y + FOOTER_GAP, generated_on)
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    doc.save(output_path)
+    doc.save(str(output_path))
     doc.close()
     return output_path

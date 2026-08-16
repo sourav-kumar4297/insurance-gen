@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pandas as pd
 
@@ -180,35 +181,56 @@ def save_state(state):
 
 
 def _from_json():
-    if not CONTACTS_PATH.exists():
-        return []
-    raw = json.loads(CONTACTS_PATH.read_text(encoding="utf-8"))
-    if not isinstance(raw, list):
-        return []
-    rows = []
-    for item in raw:
-        if not isinstance(item, dict):
+    paths = [
+        CONTACTS_PATH,
+        Path(__file__).resolve().parent / "data" / "contacts.json",
+        Path.cwd() / "data" / "contacts.json",
+    ]
+    seen = set()
+    for path in paths:
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        key = str(resolved).lower()
+        if key in seen or not path.exists():
             continue
-        email = str(item.get("email") or "").strip()
-        if not email:
+        seen.add(key)
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8-sig"))
+        except Exception:
             continue
-        rows.append(
-            {
-                "first_name": str(item.get("first_name") or "").strip(),
-                "last_name": str(item.get("last_name") or "").strip(),
-                "email": email,
-            }
-        )
-    return rows
+        if not isinstance(raw, list):
+            continue
+        rows = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            email = str(item.get("email") or "").strip()
+            if not email:
+                continue
+            rows.append(
+                {
+                    "first_name": str(item.get("first_name") or "").strip(),
+                    "last_name": str(item.get("last_name") or "").strip(),
+                    "email": email,
+                }
+            )
+        if rows:
+            return rows
+    return []
 
 
 def _from_excel():
     existing = []
     seen_paths = set()
     for path in DATA_FILES:
-        if not path.exists():
+        try:
+            if not path.exists():
+                continue
+            key = str(path.resolve()).lower()
+        except Exception:
             continue
-        key = str(path.resolve()).lower()
         if key in seen_paths:
             continue
         seen_paths.add(key)
@@ -216,7 +238,10 @@ def _from_excel():
 
     rows = []
     for path in existing:
-        df = pd.read_excel(path)
+        try:
+            df = pd.read_excel(path)
+        except Exception:
+            continue
         for _, record in df.iterrows():
             email = str(record.get("Email", "")).strip()
             if not email or email.lower() == "nan":
@@ -235,9 +260,15 @@ def load_candidates():
     used = load_used()
     seen = set()
     candidates = []
-    source_rows = _from_json() or _from_excel()
+    try:
+        source_rows = _from_json()
+    except Exception:
+        source_rows = []
     if not source_rows:
-        raise FileNotFoundError("Unable to generate export right now.")
+        try:
+            source_rows = _from_excel()
+        except Exception:
+            source_rows = []
     for person in source_rows:
         key = person["email"].lower()
         if key in used or key in seen:
@@ -249,9 +280,9 @@ def load_candidates():
 
 def peek_leads(count):
     candidates = load_candidates()
-    if len(candidates) < count:
+    if not candidates:
         raise ValueError("Unable to generate export right now.")
-    return candidates[:count]
+    return candidates[: max(1, count)]
 
 
 def mark_used(people):

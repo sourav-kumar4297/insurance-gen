@@ -1,6 +1,8 @@
+import logging
 import os
 from datetime import date, timedelta
 from functools import wraps
+from pathlib import Path
 from shutil import copy2
 
 from flask import (
@@ -30,6 +32,7 @@ from leads import load_state, mark_used, peek_leads, save_state
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+logging.basicConfig(level=logging.INFO)
 
 
 def login_required(view):
@@ -57,6 +60,24 @@ def default_dates():
     if start > end:
         start = end
     return state, start, end
+
+
+def send_pdf(path, filename):
+    abs_path = str(Path(path).resolve())
+    try:
+        return send_file(
+            abs_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="application/pdf",
+        )
+    except TypeError:
+        return send_file(
+            abs_path,
+            as_attachment=True,
+            attachment_filename=filename,
+            mimetype="application/pdf",
+        )
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -117,11 +138,7 @@ def generate():
 
     try:
         selected = peek_leads(count)
-        timestamps = random_submission_times(count, start, end)
-        covered = {item.date() for item in timestamps}
-        if start not in covered or end not in covered:
-            raise ValueError("Please choose a valid date range.")
-
+        timestamps = random_submission_times(len(selected), start, end)
         rows = []
         for index, (person, submitted_on) in enumerate(zip(selected, timestamps), start=1):
             rows.append({**person, "submitted_on": submitted_on, "index": index})
@@ -129,7 +146,7 @@ def generate():
         generated_on = format_generated_on(end)
         export_number = int(state.get("export_number") or 17)
         filename = f"Google Ads Conversion - Button Click - Squarespace Export ({export_number}).pdf"
-        output_path = GENERATED_DIR / filename
+        output_path = Path(GENERATED_DIR) / filename
         build_pdf(rows, output_path, start, end, generated_on)
 
         try:
@@ -143,8 +160,9 @@ def generate():
         state["last_end_date"] = end.isoformat()
         save_state(state)
 
-        return send_file(output_path, as_attachment=True, download_name=filename)
+        return send_pdf(output_path, filename)
     except Exception:
+        app.logger.exception("PDF generate failed")
         flash("Unable to generate export right now. Please try again.")
         return redirect(url_for("dashboard"))
 
@@ -156,6 +174,6 @@ def logout():
 
 
 if __name__ == "__main__":
-    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+    Path(GENERATED_DIR).mkdir(parents=True, exist_ok=True)
     port = int(os.environ.get("PORT", 5050))
     app.run(host="0.0.0.0", port=port, debug=False)

@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -25,10 +26,27 @@ DATA_FILES = [
     Path(r"c:\Users\DELL\Downloads\usa b2c consumers database-sample.xlsx"),
     Path(r"c:\Users\DELL\Downloads\usa traders-sample.xlsx"),
 ]
-USED_PATH = BASE_DIR / "data" / "used.json"
-STATE_PATH = BASE_DIR / "data" / "state.json"
-GENERATED_DIR = BASE_DIR / "generated"
+USED_PATH = DATA_DIR / "used.json"
+STATE_PATH = DATA_DIR / "state.json"
 DOWNLOADS_DIR = Path(r"c:\Users\DELL\Downloads")
 
 FONT_REGULAR_PATH = r"C:\Windows\Fonts\segoeui.ttf"
 FONT_BOLD_PATH = r"C:\Windows\Fonts\segoeuib.ttf"
+
+
+def writable_dir(preferred):
+    preferred = Path(preferred)
+    options = [preferred, Path(tempfile.gettempdir()) / "insurance-gen"]
+    for path in options:
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / ".write_test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            return path
+        except Exception:
+            continue
+    return preferred
+
+
+GENERATED_DIR = writable_dir(BASE_DIR / "generated")
