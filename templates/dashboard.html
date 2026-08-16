@@ -3,38 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Generate Leads · {{ site_name }}</title>
+  <title>Reports · {{ site_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header class="top">
     <div>
       <p class="eyebrow">{{ site_name }}</p>
-      <h1>Lead generator</h1>
+      <h1>Reports</h1>
     </div>
     <a class="ghost" href="{{ url_for('logout') }}">Log out</a>
   </header>
 
   <main class="shell wide">
     <section class="card">
-      <p class="lede">Generate a Squarespace-style PDF of unique visitors from <a href="{{ site_url }}" target="_blank" rel="noreferrer">{{ site_url }}</a>. Dates start after the last export. Users already used are never repeated.</p>
-
       {% with messages = get_flashed_messages() %}
         {% if messages %}
           <div class="alert">{{ messages[0] }}</div>
         {% endif %}
       {% endwith %}
 
-      {% if not source_ok %}
-        <div class="alert">{{ source_error }}</div>
-      {% endif %}
-
       <form method="post" action="{{ url_for('generate') }}">
-        <div class="grid">
-          <label>
-            Number of leads (10–12)
-            <input type="number" name="count" min="{{ min_leads }}" max="{{ max_leads }}" value="{{ default_count }}" required>
-          </label>
+        <input type="hidden" name="count" value="{{ default_count }}">
+        <div class="grid two">
           <label>
             Start date
             <input type="date" name="start_date" value="{{ start_date }}" required>
@@ -44,8 +35,7 @@
             <input type="date" name="end_date" value="{{ today }}" required>
           </label>
         </div>
-        <p class="meta">Unused contacts remaining: {{ remaining }}</p>
-        <button type="submit" {% if not source_ok or remaining < min_leads %}disabled{% endif %}>Generate leads</button>
+        <button type="submit" {% if not source_ok %}disabled{% endif %}>Download PDF</button>
       </form>
     </section>
   </main>

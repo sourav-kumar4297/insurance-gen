@@ -1,5 +1,6 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from functools import wraps
+from shutil import copy2
 
 from flask import (
     Flask,
@@ -16,20 +17,18 @@ from config import (
     ADMIN_PASSWORD,
     ADMIN_USER,
     DEFAULT_LEAD_COUNT,
+    DOWNLOADS_DIR,
     GENERATED_DIR,
     MAX_LEADS,
     MIN_LEADS,
     SECRET_KEY,
     SITE_NAME,
-    SITE_URL,
 )
 from lead_pdf import build_pdf, format_generated_on, random_submission_times
-from leads import remaining_count, take_leads
+from leads import load_state, mark_used, peek_leads, remaining_count, save_state
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-
-LAST_EXPORT_END = date(2026, 8, 12)
 
 
 def login_required(view):
@@ -40,6 +39,13 @@ def login_required(view):
         return view(*args, **kwargs)
 
     return wrapped
+
+
+def parse_date(value, fallback):
+    try:
+        return date.fromisoformat((value or "").strip())
+    except ValueError:
+        return fallback
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -61,60 +67,77 @@ def login():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+    state = load_state()
+    last_end = parse_date(state.get("last_end_date"), date(2026, 8, 12))
+    default_start = last_end + timedelta(days=1)
+    default_end = date.today()
+    if default_start > default_end:
+        default_start = default_end
+
     try:
         leftover = remaining_count()
-        source_ok = True
-        source_error = ""
-    except Exception as exc:
+        source_ok = leftover >= MIN_LEADS
+    except Exception:
         leftover = 0
         source_ok = False
-        source_error = str(exc)
 
     return render_template(
         "dashboard.html",
         site_name=SITE_NAME,
-        site_url=SITE_URL,
-        remaining=leftover,
         source_ok=source_ok,
-        source_error=source_error,
-        min_leads=MIN_LEADS,
-        max_leads=MAX_LEADS,
         default_count=DEFAULT_LEAD_COUNT,
-        start_date=(LAST_EXPORT_END + timedelta(days=1)).isoformat(),
-        today=date.today().isoformat(),
+        start_date=default_start.isoformat(),
+        today=default_end.isoformat(),
     )
 
 
 @app.route("/generate", methods=["POST"])
 @login_required
 def generate():
+    state = load_state()
+    last_end = parse_date(state.get("last_end_date"), date(2026, 8, 12))
+    default_start = last_end + timedelta(days=1)
+    default_end = date.today()
+
     try:
         count = int(request.form.get("count") or DEFAULT_LEAD_COUNT)
     except ValueError:
         count = DEFAULT_LEAD_COUNT
     count = max(MIN_LEADS, min(MAX_LEADS, count))
 
-    start = date.fromisoformat(
-        request.form.get("start_date") or str(LAST_EXPORT_END + timedelta(days=1))
-    )
-    end = date.fromisoformat(request.form.get("end_date") or str(date.today()))
+    start = parse_date(request.form.get("start_date"), default_start)
+    end = parse_date(request.form.get("end_date"), default_end)
     if start > end:
         start, end = end, start
 
     try:
-        selected = take_leads(count)
+        selected = peek_leads(count)
         timestamps = random_submission_times(count, start, end)
+        covered = {item.date() for item in timestamps}
+        if start not in covered or end not in covered:
+            raise ValueError("Please choose a valid date range.")
+
         rows = []
         for index, (person, submitted_on) in enumerate(zip(selected, timestamps), start=1):
             rows.append({**person, "submitted_on": submitted_on, "index": index})
 
-        generated_on = format_generated_on(date.today())
-        filename = f"Website Visit - Consultation Request - Export ({datetime.now().strftime('%Y%m%d-%H%M%S')}).pdf"
+        generated_on = format_generated_on(end)
+        export_number = int(state.get("export_number") or 17)
+        filename = f"Google Ads Conversion - Button Click - Squarespace Export ({export_number}).pdf"
         output_path = GENERATED_DIR / filename
         build_pdf(rows, output_path, start, end, generated_on)
+
+        DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        copy2(output_path, DOWNLOADS_DIR / filename)
+
+        mark_used(selected)
+        state["export_number"] = export_number + 1
+        state["last_end_date"] = end.isoformat()
+        save_state(state)
+
         return send_file(output_path, as_attachment=True, download_name=filename)
-    except Exception as exc:
-        flash(str(exc))
+    except Exception:
+        flash("Unable to generate export right now. Please try again.")
         return redirect(url_for("dashboard"))
 
 

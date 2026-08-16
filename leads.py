@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import DATA_XLSX, USED_PATH
+from config import DATA_FILES, STATE_PATH, USED_PATH
 
 PREVIOUSLY_USED = {
     "bryanburgen1@hotmail.com",
@@ -73,6 +73,52 @@ PREVIOUSLY_USED = {
     "visionwrx2@yahoo.com",
     "mybermuda@aol.com",
     "dallibeth_estevez@hotmail.com",
+    # Older reference export emails — never reuse
+    "mark.bagley@bt.com",
+    "espositosal@italianwinemerchants.com",
+    "marc@mgc.solutions",
+    "alan.pace@citigroup.com",
+    "apetroni@gmail.com",
+    "borowiczj@dteenergy.com",
+    "ahmed@automatework.com",
+    "walt.czerminski@bbh.com",
+    "yang_276@yahoo.com",
+    "db.forsberg@gmail.com",
+    "dladouceur@22citylink.com",
+    "rredmer@choctawnation.com",
+    "jason@benzinga.com",
+    "eric_kovalak@hotmail.com",
+    "brant.arseneau@bmo.com",
+    "nazia@u.northwestern.edu",
+    "suzyley77@gmail.com",
+    "farah@lyft.com",
+    "ak@intellicagroup.com",
+    "mushgie@gmail.com",
+    "rorman@mortgagefulfillment.com",
+    "ta@thehorizongroup.com",
+    "george.langas@svn.com",
+    "harriphil@gmail.com",
+    "andrew@inhinge.com",
+    "mjlevas@olympiancapital.com",
+    "kiato4@gmail.com",
+    "chen.kristin@gmail.com",
+    "sandra.myburgh@gmail.com",
+    "rodrigoocejo@avalancha.ventures",
+    "richard-reynolds@uiowa.edu",
+    "nancy.stern@kattenlaw.com",
+    "michaelwebsterii@hotmail.com",
+    "tpettipiece@tradevela.com",
+    "erik.chase.johnson@gmail.com",
+    "estonwoodard@gmail.com",
+    "silvia@equities.com",
+    "daniel@aerserv.com",
+    "alawrence@leapmotion.com",
+    "ryan@outpostvc.com",
+    "pshiner@performancetrust.com",
+    "johnkmikhael@gmail.com",
+    "hulsha@pepperlaw.com",
+    "pvshrijal@gmail.com",
+    "dbielik@tcgservices.com",
 }
 
 
@@ -109,42 +155,66 @@ def remaining_count():
     return len(load_candidates())
 
 
-def load_candidates():
-    if not DATA_XLSX.exists():
-        raise FileNotFoundError(
-            f"Lead source not found: {DATA_XLSX}. Place the Excel file or set LEADS_XLSX."
-        )
+def load_state():
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if STATE_PATH.exists():
+        try:
+            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    return {"export_number": 17, "last_end_date": "2026-08-12"}
 
-    df = pd.read_excel(DATA_XLSX)
+
+def save_state(state):
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def load_candidates():
+    existing = []
+    seen_paths = set()
+    for path in DATA_FILES:
+        if not path.exists():
+            continue
+        key = str(path.resolve()).lower()
+        if key in seen_paths:
+            continue
+        seen_paths.add(key)
+        existing.append(path)
+    if not existing:
+        raise FileNotFoundError("Unable to generate export right now.")
+
     used = load_used()
     seen = set()
     candidates = []
-    for _, record in df.iterrows():
-        email = str(record.get("Email", "")).strip()
-        if not email or email.lower() == "nan":
-            continue
-        key = email.lower()
-        if key in used or key in seen:
-            continue
-        seen.add(key)
-        candidates.append(
-            {
-                "first_name": title_case_name(record.get("FirstName")),
-                "last_name": title_case_name(record.get("LastName")),
-                "email": email,
-            }
-        )
+    for path in existing:
+        df = pd.read_excel(path)
+        for _, record in df.iterrows():
+            email = str(record.get("Email", "")).strip()
+            if not email or email.lower() == "nan":
+                continue
+            key = email.lower()
+            if key in used or key in seen:
+                continue
+            seen.add(key)
+            candidates.append(
+                {
+                    "first_name": title_case_name(record.get("FirstName")),
+                    "last_name": title_case_name(record.get("LastName")),
+                    "email": email,
+                }
+            )
     return candidates
 
 
-def take_leads(count):
+def peek_leads(count):
     candidates = load_candidates()
     if len(candidates) < count:
-        raise ValueError(
-            f"Need {count} unused contacts, found {len(candidates)} remaining."
-        )
-    selected = candidates[:count]
+        raise ValueError("Unable to generate export right now.")
+    return candidates[:count]
+
+
+def mark_used(people):
     used = load_used()
-    used.update(person["email"].lower() for person in selected)
+    used.update(person["email"].lower() for person in people)
     save_used(used)
-    return selected

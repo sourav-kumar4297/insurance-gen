@@ -8,8 +8,7 @@ from config import (
     FONT_BOLD_PATH,
     FONT_REGULAR_PATH,
     FORM_NAME,
-    SITE_NAME,
-    SITE_URL,
+    PDF_TITLE,
 )
 
 PAGE_WIDTH = 841.92
@@ -63,6 +62,7 @@ def random_submission_times(count, start_date, end_date):
         days.append(current)
         current += timedelta(days=1)
 
+    # Spread submissions across the full range (always include first and last day).
     day_picks = []
     if count <= len(days):
         if count == 1:
@@ -71,6 +71,8 @@ def random_submission_times(count, start_date, end_date):
             for i in range(count):
                 idx = round(i * (len(days) - 1) / (count - 1))
                 day_picks.append(days[idx])
+            day_picks[0] = start_date
+            day_picks[-1] = end_date
     else:
         base, extra = divmod(count, len(days))
         for i, day in enumerate(days):
@@ -122,14 +124,14 @@ def draw_header_banner(page, generated_on):
     )
     page.insert_text(
         fitz.Point(52, 62),
-        "Website Visit — Consultation Request",
+        PDF_TITLE,
         fontname=FONT_SEMIBOLD,
         fontsize=14,
         color=COLOR_TITLE,
     )
     page.insert_text(
         fitz.Point(52, 82),
-        f"{SITE_NAME} form submissions export · Generated {generated_on}",
+        f"Squarespace form submissions export · Generated {generated_on}",
         fontname=FONT_REGULAR,
         fontsize=8.5,
         color=COLOR_SUBTITLE,
@@ -144,7 +146,7 @@ def draw_meta_line(page, num_rows, start_date, end_date):
             f"Date range: {start_date.strftime('%B %d, %Y')} — {end_date.strftime('%B %d, %Y')}",
             170,
         ),
-        (f"Source: {SITE_URL.replace('https://', '')}", 430),
+        ("Source format: Squarespace Form Export", 430),
     ]
     for text, x in segments:
         page.insert_text(
@@ -216,8 +218,8 @@ def draw_page_number(page, current, total):
 
 
 def draw_footer(page, y, generated_on):
-    left = f"{SITE_NAME} form submissions"
-    right = f"Website visit export · {generated_on}"
+    left = "Google Ads Conversion form submissions"
+    right = f"Squarespace export format · {generated_on}"
     page.insert_text(
         fitz.Point(52, y),
         left,

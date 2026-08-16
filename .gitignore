@@ -4,4 +4,7 @@ __pycache__/
 .env
 generated/
 data/used.json
+data/state.json
+data/*.xlsx
+data/contacts.json
 .DS_Store
