@@ -44,6 +44,11 @@ COLOR_PAGE_NUM = (0.557, 0.557, 0.557)
 FONT_REGULAR = "SegoeUI"
 FONT_BOLD = "SegoeUIBold"
 FONT_SEMIBOLD = "SegoeUISemibold"
+ACTIVE_FONTS = {
+    "regular": FONT_REGULAR,
+    "bold": FONT_BOLD,
+    "semibold": FONT_SEMIBOLD,
+}
 
 
 def format_submitted_on(dt):
@@ -111,9 +116,19 @@ def paginate_rows(rows, first_page_capacity=19, next_page_capacity=24):
 
 
 def register_fonts(page):
-    page.insert_font(fontname=FONT_REGULAR, fontfile=FONT_REGULAR_PATH)
-    page.insert_font(fontname=FONT_BOLD, fontfile=FONT_BOLD_PATH)
-    page.insert_font(fontname=FONT_SEMIBOLD, fontfile=FONT_BOLD_PATH)
+    regular = Path(FONT_REGULAR_PATH)
+    bold = Path(FONT_BOLD_PATH)
+    if regular.exists() and bold.exists():
+        page.insert_font(fontname=FONT_REGULAR, fontfile=FONT_REGULAR_PATH)
+        page.insert_font(fontname=FONT_BOLD, fontfile=FONT_BOLD_PATH)
+        page.insert_font(fontname=FONT_SEMIBOLD, fontfile=FONT_BOLD_PATH)
+        ACTIVE_FONTS["regular"] = FONT_REGULAR
+        ACTIVE_FONTS["bold"] = FONT_BOLD
+        ACTIVE_FONTS["semibold"] = FONT_SEMIBOLD
+        return
+    ACTIVE_FONTS["regular"] = "helv"
+    ACTIVE_FONTS["bold"] = "hebo"
+    ACTIVE_FONTS["semibold"] = "hebo"
 
 
 def draw_header_banner(page, generated_on):
@@ -125,14 +140,14 @@ def draw_header_banner(page, generated_on):
     page.insert_text(
         fitz.Point(52, 62),
         PDF_TITLE,
-        fontname=FONT_SEMIBOLD,
+        fontname=ACTIVE_FONTS["semibold"],
         fontsize=14,
         color=COLOR_TITLE,
     )
     page.insert_text(
         fitz.Point(52, 82),
         f"Squarespace form submissions export · Generated {generated_on}",
-        fontname=FONT_REGULAR,
+        fontname=ACTIVE_FONTS["regular"],
         fontsize=8.5,
         color=COLOR_SUBTITLE,
     )
@@ -152,7 +167,7 @@ def draw_meta_line(page, num_rows, start_date, end_date):
         page.insert_text(
             fitz.Point(x, y),
             text,
-            fontname=FONT_BOLD,
+            fontname=ACTIVE_FONTS["bold"],
             fontsize=8.5,
             color=COLOR_META,
         )
@@ -167,7 +182,7 @@ def draw_table_header(page, y, height=TABLE_HEADER_HEIGHT):
         page.insert_text(
             fitz.Point(text_x, y + height - 8),
             text,
-            fontname=FONT_BOLD,
+            fontname=ACTIVE_FONTS["bold"],
             fontsize=8,
             color=COLOR_HEADER_TEXT,
         )
@@ -200,7 +215,7 @@ def draw_row(page, y, row_index, row):
         page.insert_text(
             fitz.Point(text_x, y + 14),
             value,
-            fontname=FONT_REGULAR,
+            fontname=ACTIVE_FONTS["regular"],
             fontsize=8.5,
             color=color,
         )
@@ -211,7 +226,7 @@ def draw_page_number(page, current, total):
     page.insert_text(
         fitz.Point(PAGE_WIDTH / 2 - 35, PAGE_NUMBER_Y),
         text,
-        fontname=FONT_REGULAR,
+        fontname=ACTIVE_FONTS["regular"],
         fontsize=8,
         color=COLOR_PAGE_NUM,
     )
@@ -223,14 +238,14 @@ def draw_footer(page, y, generated_on):
     page.insert_text(
         fitz.Point(52, y),
         left,
-        fontname=FONT_REGULAR,
+        fontname=ACTIVE_FONTS["regular"],
         fontsize=8,
         color=COLOR_FOOTER,
     )
     page.insert_text(
         fitz.Point(620, y),
         right,
-        fontname=FONT_REGULAR,
+        fontname=ACTIVE_FONTS["regular"],
         fontsize=8,
         color=COLOR_FOOTER,
     )

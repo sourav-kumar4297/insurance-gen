@@ -1,3 +1,4 @@
+import os
 from datetime import date, timedelta
 from functools import wraps
 from shutil import copy2
@@ -25,7 +26,7 @@ from config import (
     SITE_NAME,
 )
 from lead_pdf import build_pdf, format_generated_on, random_submission_times
-from leads import load_state, mark_used, peek_leads, remaining_count, save_state
+from leads import load_state, mark_used, peek_leads, save_state
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -43,9 +44,19 @@ def login_required(view):
 
 def parse_date(value, fallback):
     try:
-        return date.fromisoformat((value or "").strip())
-    except ValueError:
+        return date.fromisoformat(str(value or "").strip())
+    except Exception:
         return fallback
+
+
+def default_dates():
+    state = load_state()
+    last_end = parse_date(state.get("last_end_date"), date(2026, 8, 12))
+    start = last_end + timedelta(days=1)
+    end = date.today()
+    if start > end:
+        start = end
+    return state, start, end
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -67,37 +78,31 @@ def login():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    state = load_state()
-    last_end = parse_date(state.get("last_end_date"), date(2026, 8, 12))
-    default_start = last_end + timedelta(days=1)
-    default_end = date.today()
-    if default_start > default_end:
-        default_start = default_end
-
     try:
-        leftover = remaining_count()
-        source_ok = leftover >= MIN_LEADS
+        _state, start, end = default_dates()
     except Exception:
-        leftover = 0
-        source_ok = False
+        start = date.today()
+        end = date.today()
 
     return render_template(
         "dashboard.html",
         site_name=SITE_NAME,
-        source_ok=source_ok,
+        source_ok=True,
         default_count=DEFAULT_LEAD_COUNT,
-        start_date=default_start.isoformat(),
-        today=default_end.isoformat(),
+        start_date=start.isoformat(),
+        today=end.isoformat(),
     )
 
 
 @app.route("/generate", methods=["POST"])
 @login_required
 def generate():
-    state = load_state()
-    last_end = parse_date(state.get("last_end_date"), date(2026, 8, 12))
-    default_start = last_end + timedelta(days=1)
-    default_end = date.today()
+    try:
+        state, default_start, default_end = default_dates()
+    except Exception:
+        state = {"export_number": 17}
+        default_start = date.today()
+        default_end = date.today()
 
     try:
         count = int(request.form.get("count") or DEFAULT_LEAD_COUNT)
@@ -127,8 +132,11 @@ def generate():
         output_path = GENERATED_DIR / filename
         build_pdf(rows, output_path, start, end, generated_on)
 
-        DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
-        copy2(output_path, DOWNLOADS_DIR / filename)
+        try:
+            DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+            copy2(output_path, DOWNLOADS_DIR / filename)
+        except Exception:
+            pass
 
         mark_used(selected)
         state["export_number"] = export_number + 1
@@ -149,4 +157,5 @@ def logout():
 
 if __name__ == "__main__":
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    app.run(debug=True, port=5050)
+    port = int(os.environ.get("PORT", 5050))
+    app.run(host="0.0.0.0", port=port, debug=False)

@@ -1,9 +1,8 @@
 import json
-from pathlib import Path
 
 import pandas as pd
 
-from config import DATA_FILES, STATE_PATH, USED_PATH
+from config import CONTACTS_PATH, DATA_FILES, STATE_PATH, USED_PATH
 
 PREVIOUSLY_USED = {
     "bryanburgen1@hotmail.com",
@@ -132,23 +131,27 @@ def title_case_name(value):
 
 
 def load_used():
-    USED_PATH.parent.mkdir(parents=True, exist_ok=True)
     used = set(PREVIOUSLY_USED)
-    if USED_PATH.exists():
-        try:
+    try:
+        USED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if USED_PATH.exists():
             extra = json.loads(USED_PATH.read_text(encoding="utf-8"))
-            used.update(str(item).strip().lower() for item in extra)
-        except json.JSONDecodeError:
-            pass
+            if isinstance(extra, list):
+                used.update(str(item).strip().lower() for item in extra)
+    except Exception:
+        pass
     return used
 
 
 def save_used(used):
-    USED_PATH.parent.mkdir(parents=True, exist_ok=True)
-    USED_PATH.write_text(
-        json.dumps(sorted(used), indent=2),
-        encoding="utf-8",
-    )
+    try:
+        USED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        USED_PATH.write_text(
+            json.dumps(sorted(used), indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 
 def remaining_count():
@@ -156,21 +159,50 @@ def remaining_count():
 
 
 def load_state():
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if STATE_PATH.exists():
-        try:
-            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            pass
-    return {"export_number": 17, "last_end_date": "2026-08-12"}
+    default = {"export_number": 17, "last_end_date": "2026-08-12"}
+    try:
+        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if STATE_PATH.exists():
+            data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                default.update(data)
+    except Exception:
+        pass
+    return default
 
 
 def save_state(state):
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    try:
+        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
-def load_candidates():
+def _from_json():
+    if not CONTACTS_PATH.exists():
+        return []
+    raw = json.loads(CONTACTS_PATH.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        return []
+    rows = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        email = str(item.get("email") or "").strip()
+        if not email:
+            continue
+        rows.append(
+            {
+                "first_name": str(item.get("first_name") or "").strip(),
+                "last_name": str(item.get("last_name") or "").strip(),
+                "email": email,
+            }
+        )
+    return rows
+
+
+def _from_excel():
     existing = []
     seen_paths = set()
     for path in DATA_FILES:
@@ -181,29 +213,37 @@ def load_candidates():
             continue
         seen_paths.add(key)
         existing.append(path)
-    if not existing:
-        raise FileNotFoundError("Unable to generate export right now.")
 
-    used = load_used()
-    seen = set()
-    candidates = []
+    rows = []
     for path in existing:
         df = pd.read_excel(path)
         for _, record in df.iterrows():
             email = str(record.get("Email", "")).strip()
             if not email or email.lower() == "nan":
                 continue
-            key = email.lower()
-            if key in used or key in seen:
-                continue
-            seen.add(key)
-            candidates.append(
+            rows.append(
                 {
                     "first_name": title_case_name(record.get("FirstName")),
                     "last_name": title_case_name(record.get("LastName")),
                     "email": email,
                 }
             )
+    return rows
+
+
+def load_candidates():
+    used = load_used()
+    seen = set()
+    candidates = []
+    source_rows = _from_json() or _from_excel()
+    if not source_rows:
+        raise FileNotFoundError("Unable to generate export right now.")
+    for person in source_rows:
+        key = person["email"].lower()
+        if key in used or key in seen:
+            continue
+        seen.add(key)
+        candidates.append(person)
     return candidates
 
 

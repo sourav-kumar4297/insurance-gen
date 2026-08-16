@@ -18,6 +18,7 @@ MAX_LEADS = 12
 NEXT_EXPORT_NUMBER = 17
 
 DATA_DIR = BASE_DIR / "data"
+CONTACTS_PATH = DATA_DIR / "contacts.json"
 DATA_FILES = [
     DATA_DIR / "usa b2c consumers database-sample.xlsx",
     DATA_DIR / "usa traders-sample.xlsx",
