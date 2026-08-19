@@ -19,10 +19,11 @@
     <section class="card">
       {% with messages = get_flashed_messages() %}
         {% if messages %}
-          <div class="alert">{{ messages[0] }}</div>
+          <div class="notice">{{ messages[0] }}</div>
         {% endif %}
       {% endwith %}
 
+      {% if has_visitors %}
       <form method="post" action="{{ url_for('generate') }}">
         <input type="hidden" name="count" value="{{ default_count }}">
         <div class="grid two">
@@ -35,8 +36,11 @@
             <input type="date" name="end_date" value="{{ today }}" required>
           </label>
         </div>
-        <button type="submit" {% if not source_ok %}disabled{% endif %}>Download PDF</button>
+        <button type="submit">Download PDF</button>
       </form>
+      {% else %}
+      <p class="notice">No new visitors visited the website.</p>
+      {% endif %}
     </section>
   </main>
 </body>

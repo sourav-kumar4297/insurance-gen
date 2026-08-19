@@ -74,6 +74,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   padding: 12px 14px;
   margin: 16px 0;
 }
+.notice {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
 .top {
   display: flex;
   justify-content: space-between;

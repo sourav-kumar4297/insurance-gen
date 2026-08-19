@@ -126,9 +126,34 @@ def title_case_name(value):
     if pd.isna(value):
         return ""
     text = str(value).strip()
-    if not text:
+    if not text or text.lower() == "nan":
         return ""
     return text.title()
+
+
+def record_value(record, *keys):
+    lookup = {}
+    for column in record.index:
+        lookup[str(column).strip().lower().replace(" ", "").replace("_", "")] = column
+    for key in keys:
+        mapped = lookup.get(str(key).strip().lower().replace(" ", "").replace("_", ""))
+        if mapped is not None:
+            return record.get(mapped)
+    return None
+
+
+def row_from_record(record):
+    email = str(record_value(record, "Email", "E-mail") or "").strip()
+    if not email or email.lower() == "nan":
+        return None
+    first = title_case_name(record_value(record, "FirstName", "First Name", "first_name"))
+    last = title_case_name(record_value(record, "LastName", "Last Name", "last_name"))
+    if not first and not last:
+        contact = title_case_name(record_value(record, "Contact Name", "ContactName", "Name"))
+        parts = contact.split(None, 1)
+        first = parts[0] if parts else ""
+        last = parts[1] if len(parts) > 1 else ""
+    return {"first_name": first, "last_name": last, "email": email}
 
 
 def load_used():
@@ -243,16 +268,9 @@ def _from_excel():
         except Exception:
             continue
         for _, record in df.iterrows():
-            email = str(record.get("Email", "")).strip()
-            if not email or email.lower() == "nan":
-                continue
-            rows.append(
-                {
-                    "first_name": title_case_name(record.get("FirstName")),
-                    "last_name": title_case_name(record.get("LastName")),
-                    "email": email,
-                }
-            )
+            person = row_from_record(record)
+            if person:
+                rows.append(person)
     return rows
 
 
@@ -260,15 +278,15 @@ def load_candidates():
     used = load_used()
     seen = set()
     candidates = []
+    source_rows = []
     try:
-        source_rows = _from_json()
+        source_rows.extend(_from_excel())
     except Exception:
-        source_rows = []
-    if not source_rows:
-        try:
-            source_rows = _from_excel()
-        except Exception:
-            source_rows = []
+        pass
+    try:
+        source_rows.extend(_from_json())
+    except Exception:
+        pass
     for person in source_rows:
         key = person["email"].lower()
         if key in used or key in seen:
@@ -281,7 +299,7 @@ def load_candidates():
 def peek_leads(count):
     candidates = load_candidates()
     if not candidates:
-        raise ValueError("Unable to generate export right now.")
+        raise ValueError("NO_VISITORS")
     return candidates[: max(1, count)]
 
 

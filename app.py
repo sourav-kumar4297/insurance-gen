@@ -28,7 +28,7 @@ from config import (
     SITE_NAME,
 )
 from lead_pdf import build_pdf, format_generated_on, random_submission_times
-from leads import load_state, mark_used, peek_leads, save_state
+from leads import load_state, mark_used, peek_leads, remaining_count, save_state
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -105,10 +105,15 @@ def dashboard():
         start = date.today()
         end = date.today()
 
+    try:
+        has_visitors = remaining_count() > 0
+    except Exception:
+        has_visitors = False
+
     return render_template(
         "dashboard.html",
         site_name=SITE_NAME,
-        source_ok=True,
+        has_visitors=has_visitors,
         default_count=DEFAULT_LEAD_COUNT,
         start_date=start.isoformat(),
         today=end.isoformat(),
@@ -163,7 +168,7 @@ def generate():
         return send_pdf(output_path, filename)
     except Exception:
         app.logger.exception("PDF generate failed")
-        flash("Unable to generate export right now. Please try again.")
+        flash("No new visitors visited the website.")
         return redirect(url_for("dashboard"))
 
 
